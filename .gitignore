@@ -1,0 +1,4 @@
+outputs
+build
+material_function.c
+*.so
