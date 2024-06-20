@@ -10,6 +10,8 @@ WAVELENGTH=1.55  # um
 BANDWIDTH=0.01 # um
 RESOLUTION=4
 
+N_MPI_CORES=4
+
 python setup.py build_ext --inplace
-mpirun -n 4 python run_meep.py $NCO $NCL $THETA $L $WIDTH $HEIGHT $WAVELENGTH \
+mpirun -n $N_MPI_CORES python run_meep.py $NCO $NCL $THETA $L $WIDTH $HEIGHT $WAVELENGTH \
     $RESOLUTION --bandwidth $BANDWIDTH
