@@ -15,6 +15,20 @@ from material_function import eps_func
 
 output_dir = 'outputs'
 
+parser = argparse.ArgumentParser()
+parser.add_argument('nco', type=float)
+parser.add_argument('ncl', type=float)
+parser.add_argument('angle', type=float)
+parser.add_argument('length', type=float)
+parser.add_argument('width', type=float)
+parser.add_argument('height', type=float)
+parser.add_argument('wl', type=float)
+parser.add_argument('resolution', type=int, default=1)
+parser.add_argument('--nslices', type=int, default=2)
+parser.add_argument('--until', type=float, default=None)
+parser.add_argument('--bandwidth', type=float, default=None)
+args = parser.parse_args()
+
 
 def twisted_guide(nco, ncl, width, height, angle, length):
     alpha = np.radians(angle) / length
@@ -37,7 +51,7 @@ def twisted_guide(nco, ncl, width, height, angle, length):
     return tg_eps_func
 
 
-def create_simulation(nco, ncl, angle, length, width, height, freq, resolution):
+def create_simulation(nco, ncl, angle, length, width, height, wl, bw, resolution):
     tg = twisted_guide(nco, ncl, width, height, angle, length)
     dpml = 1
 
@@ -52,8 +66,8 @@ def create_simulation(nco, ncl, angle, length, width, height, freq, resolution):
                          size=mp.Vector3(width, width, length),
                          material=tg)]
 
-    beta = freq * nco
-    sources = [mp.EigenModeSource(mp.GaussianSource(freq, width=40 / freq, cutoff=2),
+    beta = nco / wl
+    sources = [mp.EigenModeSource(mp.GaussianSource(wavelength=wl, width=bw, cutoff=2),
                                   center=mp.Vector3(z=-0.5),
                                   size=mp.Vector3(sxy, sxy),
                                   eig_match_freq=True,
@@ -77,28 +91,17 @@ def create_simulation(nco, ncl, angle, length, width, height, freq, resolution):
     return sim
 
 
-if __name__ == '__main__':
-    SLURM_JOBID = os.environ.get('SLURM_JOBID')
-    if SLURM_JOBID:
-        sys.stdout.write("JOBID: {}\n".format(SLURM_JOBID))
-    parser = argparse.ArgumentParser()
-    parser.add_argument('nco', type=float)
-    parser.add_argument('ncl', type=float)
-    parser.add_argument('angle', type=float)
-    parser.add_argument('length', type=float)
-    parser.add_argument('width', type=float)
-    parser.add_argument('height', type=float)
-    parser.add_argument('wl', type=float)
-    parser.add_argument('resolution', type=int, default=1)
-    parser.add_argument('--nslices', type=int, default=2)
-    parser.add_argument('--until', type=float, default=None)
-    args = parser.parse_args()
+def main(args):
     nco, ncl = args.nco, args.ncl
     angle = args.angle
     length = args.length
     width = args.width
     height = args.height
-    freq = 1. / args.wl
+    wl = args.wl
+    freq = 1 / wl
+    bandwidth = args.bandwidth
+    if bandwidth is None:
+        bandwidth = 40 * args.wl
     resolution = args.resolution
     nslices = args.nslices
     until = args.until
@@ -107,10 +110,10 @@ if __name__ == '__main__':
     sys.stdout.write('  angle = {} deg\n'.format(angle))
     sys.stdout.write('  length = {}\n'.format(length))
     sys.stdout.write('  width x height = {} x {}\n'.format(width, height))
-    sys.stdout.write('  wavelength = {:.4g}\n'.format(1 / freq))
+    sys.stdout.write('  wavelength = {:.4g}\n'.format(wl))
+    sys.stdout.write('  bandwidth = {:.4g}\n'.format(bandwidth))
     sys.stdout.write('====================================\n')
-    sim = create_simulation(nco, ncl, angle, length, width, height, freq, resolution)
-    # dft = sim.add_dft_fields([mp.Ex, mp.Ey], freq, 0, 1, where=nonpml_vol)
+    sim = create_simulation(nco, ncl, angle, length, width, height, wl, bandwidth, resolution)
     dft_slices = []
     zs = np.linspace(0, length, nslices)
     comps = dict(Ex=mp.Ex, Ey=mp.Ey, Ez=mp.Ez, Hx=mp.Hx, Hy=mp.Hy, Hz=mp.Hz)
@@ -145,3 +148,10 @@ if __name__ == '__main__':
                     f[comp][:, :, i] = arr
             sys.stdout.write('Saved {}\n'.format(comp))
     sys.stdout.write('\nDFT fields saved to {}\n'.format(filename))
+
+
+if __name__ == '__main__':
+    SLURM_JOBID = os.environ.get('SLURM_JOBID')
+    if SLURM_JOBID:
+        sys.stdout.write("JOBID: {}\n".format(SLURM_JOBID))
+    main(args)
