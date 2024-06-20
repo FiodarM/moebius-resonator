@@ -2,3 +2,4 @@ outputs
 build
 material_function.c
 *.so
+**.ipynb_checkpoints
